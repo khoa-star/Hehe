@@ -3,119 +3,151 @@ name: AnhKhoaDesktop
 on:
   workflow_dispatch:
     inputs:
-      os:
-        description: "Chọn Windows Server"
-        required: true
-        default: windows-2022
-        type: choice
-        options:
-          - windows-2019
-          - windows-2022
-          - windows-latest
       duration:
-        description: "Thời gian chạy"
-        required: true
-        default: "6h"
+        description: '🕐 Thời gian sử dụng'
+        required: false
+        default: '5h40m'
         type: choice
         options:
-          - "6h"
-          - "12h"
+        - '1h'
+        - '3h'
+        - '5h40m'
+      server_version:
+        description: 'Chọn Windows Server'
+        required: false
+        default: '2022'
+        type: choice
+        options:
+        - '2019'
+        - '2022'
+        - 'latest'
 
 jobs:
-  rdp:
-    runs-on: ${{ github.event.inputs.os }}
-    timeout-minutes: 720
+  Premium-RDP-Setup:
+    runs-on: windows-2022
+    timeout-minutes: 340
 
     steps:
-    - name: 🛠️ ĐANG CẤU HÌNH HỆ THỐNG
-      shell: powershell
+    # BANNER CHÀO MỪNG
+    - name: 🎯 KHỞI ĐỘNG HỆ THỐNG
+      run: |
+        Write-Host ""
+        Write-Host ""
+        Write-Host "🤖 AI STV PREMIUM RDP SERVER" -ForegroundColor Yellow
+        Write-Host "⚡ Powered by AI STV" -ForegroundColor Green
+        Write-Host "🕒 Thời gian: ${{ github.event.inputs.duration }}" -ForegroundColor Magenta
+        Write-Host ""
+
+        $frames = @('⣾','⣽','⣻','⢿','⡿','⣟','⣯','⣷')
+        for($i=0;$i -lt 10;$i++) {
+          Write-Host "`r🚀 Đang khởi tạo hệ thống... $($frames[$i % 8])" -NoNewline -ForegroundColor Blue
+          Start-Sleep -Milliseconds 100
+        }
+        Write-Host "`r✅ Hệ thống đã sẵn sàng!" -ForegroundColor Green
+
+    # CẤU HÌNH HỆ THỐNG (giống Windows Server 2012)
+    - name: 🔧 CẤU HÌNH HỆ THỐNG
       run: |
         Write-Host "`n🛠️ ĐANG CẤU HÌNH HỆ THỐNG" -ForegroundColor Yellow
 
-    - name: 👤 TẠO USER PREMIUM
-      shell: powershell
-      run: |
-        $username = "AnhKhoaVipPro"
-        $password = "AnhKhoa@123"
+        # Bật RDP
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
 
-        net user $username $password /add /y
-        net localgroup administrators $username /add
-        net localgroup "Remote Desktop Users" $username /add
+        # Tắt xác thực mạng
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
 
-    - name: 📦 CÀI WINRAR (LỖI THÌ BỎ QUA)
-      shell: powershell
+        # Cấu hình bảo mật RDP
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
+
+        # Mở port 3389 firewall
+        netsh advfirewall firewall add rule name="RDP-Premium" dir=in action=allow protocol=TCP localport=3389 profile=any
+        netsh advfirewall firewall add rule name="RDP-Premium-Out" dir=out action=allow protocol=TCP localport=3389 profile=any
+
+        # Tắt hết Antivirus / Windows Defender / SmartScreen / App & Browser
+        Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
+        Set-MpPreference -DisableBehaviorMonitoring $true -ErrorAction SilentlyContinue
+        Set-MpPreference -DisableIOAVProtection $true -ErrorAction SilentlyContinue
+        Set-MpPreference -DisablePrivacyMode $true -ErrorAction SilentlyContinue
+        Set-MpPreference -DisableScriptScanning $true -ErrorAction SilentlyContinue
+        Set-MpPreference -DisableIntrusionPreventionSystem $true -ErrorAction SilentlyContinue
+        Set-MpPreference -DisableArchiveScanning $true -ErrorAction SilentlyContinue
+
+        # Khởi động dịch vụ RDP
+        Set-Service -Name TermService -StartupType Automatic -ErrorAction SilentlyContinue
+        Set-Service -Name UmRdpService -StartupType Automatic -ErrorAction SilentlyContinue
+        Start-Service -Name TermService -ErrorAction SilentlyContinue
+        Start-Service -Name UmRdpService -ErrorAction SilentlyContinue
+
+    # TẠO USER PREMIUM
+    - name: 👤 TẠO TÀI KHOẢN PREMIUM
       run: |
-        $url = "https://www.win-rar.com/fileadmin/winrar-versions/winrar/winrar-x64-713.exe"
-        $exe = "$env:TEMP\winrar.exe"
+        Write-Host "`n👤 ĐANG TẠO TÀI KHOẢN PREMIUM" -ForegroundColor Yellow
+
+        $matKhau = "AnhKhoa@123"
+        $securePass = ConvertTo-SecureString $matKhau -AsPlainText -Force
+
         try {
-          Invoke-WebRequest $url -OutFile $exe -UseBasicParsing
-          Start-Process $exe -ArgumentList "/S" -Wait
+          Remove-LocalUser -Name "AnhKhoaVipPro" -ErrorAction SilentlyContinue
+        } catch {}
+
+        New-LocalUser -Name "AnhKhoaVipPro" -Password $securePass -AccountNeverExpires -Description "AI STV Premium Account"
+        Set-LocalUser -Name "AnhKhoaVipPro" -PasswordNeverExpires $true -ErrorAction SilentlyContinue
+        Add-LocalGroupMember -Group "Administrators" -Member "AnhKhoaVipPro" -ErrorAction SilentlyContinue
+        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "AnhKhoaVipPro" -ErrorAction SilentlyContinue
+        Add-LocalGroupMember -Group "Users" -Member "AnhKhoaVipPro" -ErrorAction SilentlyContinue
+        Enable-LocalUser -Name "AnhKhoaVipPro"
+
+        # Lưu user/password
+        echo "RDP_USER=AnhKhoaVipPro" >> $env:GITHUB_ENV
+        echo "RDP_PASS=$matKhau" >> $env:GITHUB_ENV
+
+    # CÀI WINRAR
+    - name: 📦 CÀI WINRAR
+      run: |
+        Write-Host "`n🔄 Kiểm tra WinRAR..."
+        $winrarUrl = "https://www.win-rar.com/fileadmin/winrar-versions/winrar/winrar-x64-713.exe"
+        $exePath = "$env:TEMP\winrar-installer.exe"
+        try {
+          Invoke-WebRequest -Uri $winrarUrl -OutFile $exePath -UseBasicParsing
+          Start-Process -FilePath $exePath -ArgumentList "/S" -Wait
         } catch {
-          Write-Host "⚠️ Cài WinRAR thất bại - bỏ qua"
+          Write-Host "⚠️ Không thể cài WinRAR, bỏ qua..." -ForegroundColor Yellow
         }
 
-    - name: 🛡️ TẮT ANTIVIRUS & FIREWALL
-      shell: powershell
-      run: |
-        Set-MpPreference -DisableRealtimeMonitoring $true
-        Set-MpPreference -DisableBehaviorMonitoring $true
-        Set-MpPreference -DisableBlockAtFirstSeen $true
-        Set-MpPreference -DisableIOAVProtection $true
-        Set-MpPreference -DisablePrivacyMode $true
-        Set-MpPreference -DisableScriptScanning $true
-
-        netsh advfirewall set allprofiles state off
-        reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v SmartScreenEnabled /t REG_SZ /d Off /f
-
-    - name: 🔐 BẬT RDP
-      shell: powershell
-      run: |
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-        Start-Service TermService
-
-    - name: 🌐 CÀI & KẾT NỐI TAILSCALE
-      shell: powershell
+    # TAILSCALE
+    - name: 🌐 CÀI ĐẶT VÀ KẾT NỐI TAILSCALE
       env:
-        TSKEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
       run: |
-        Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup.exe -OutFile tailscale.exe
-        Start-Process tailscale.exe -ArgumentList "/S" -Wait
-        & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$env:TSKEY --accept-risk=all
+        Write-Host "`n🌐 ĐANG CÀI TAILSCALE..." -ForegroundColor Yellow
+        $msiPath = "$env:TEMP\tailscale-premium.msi"
+        Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" -OutFile $msiPath
+        Start-Process msiexec.exe -ArgumentList "/i", "`"$msiPath`"", "/quiet", "/norestart" -Wait
+        Remove-Item $msiPath -Force
 
-    - name: 📋 HIỂN THỊ THÔNG TIN RDP
-      shell: powershell
+        # Kết nối Tailscale
+        & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=$env:TAILSCALE_AUTH_KEY --hostname=AnhKhoaDesktop-$env:GITHUB_RUN_ID --accept-routes --accept-dns --reset
+
+        # Lấy IP
+        $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+        echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
+
+    # HIỂN THỊ THÔNG TIN
+    - name: 🎉 THÔNG TIN KẾT NỐI
       run: |
-        $ip = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
-        $user = "AnhKhoaVipPro"
-        $pass = "AnhKhoa@123"
-
         Write-Host ""
-        Write-Host "┌──────────────────────────────────────┐"
-        Write-Host "│ 🌐 IP   : $ip"
-        Write-Host "│ 👤 USER : $user"
-        Write-Host "│ 🔐 PASS : $pass"
-        Write-Host "│ 🖥️ PORT : 3389"
-        Write-Host "└──────────────────────────────────────┘"
-        Write-Host ""
+        Write-Host "┌─────────────────────────────┐"
+        Write-Host "│ 🌐 IP: ________ │"
+        Write-Host "│ 👤 User: ________ │"
+        Write-Host "│ 🔐 Pass: ________ │"
+        Write-Host "└─────────────────────────────┘"
 
-    - name: ⏱️ DUY TRÌ PHIÊN (KEEP ALIVE)
-      shell: powershell
+    # DUY TRÌ PHIÊN
+    - name: ⏳ DUY TRÌ PHIÊN
       run: |
-        if ("${{ github.event.inputs.duration }}" -eq "6h") {
-          $seconds = 21600
-        } else {
-          $seconds = 43200
-        }
-
-        $end = (Get-Date).AddSeconds($seconds)
-
-        while ((Get-Date) -lt $end) {
-          $svc = Get-Service TermService
-          if ($svc.Status -ne "Running") {
-            Start-Service TermService
-          }
+        Write-Host "`n🔄 BẮT ĐẦU DUY TRÌ PHIÊN LÀM VIỆC..."
+        while ($true) {
+          $termService = Get-Service -Name TermService -ErrorAction SilentlyContinue
+          if ($termService.Status -ne 'Running') { Start-Service -Name TermService -ErrorAction SilentlyContinue }
           Start-Sleep -Seconds 30
         }
-
-        Write-Host "⛔ HẾT THỜI GIAN - KẾT THÚC"
